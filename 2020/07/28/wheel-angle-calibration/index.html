@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 4.2.1">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"localhost","root":"/","scheme":"Pisces","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="出于对汽车的兴趣以及专业的惯性，自己很久之前就开始想象未来汽车以及驾驶的发展方向。待到动手开干时，彼时的特斯拉股价还只有区区$300。那段时间对课题方向很迷茫，甚至想把自己的课题也改成自动驾驶方向。但是无奈，仅凭现有的导师资源，难以应付工程实现难题，以及理论基础的空缺，作为主要研究方向的话，恐怕难以跻身学界的第一梯队。 于是作为纯兴趣，没有外部支持，要开始的话那一切任何软硬件方案都需要从零构建组合">
+<meta property="og:type" content="article">
+<meta property="og:title" content="从零构建未来驾驶技术栈（1）：车的哲学三问">
+<meta property="og:url" content="http://localhost:4000/2020/07/28/wheel-angle-calibration/index.html">
+<meta property="og:site_name" content="Zheng&#39;s Learning Notes">
+<meta property="og:description" content="出于对汽车的兴趣以及专业的惯性，自己很久之前就开始想象未来汽车以及驾驶的发展方向。待到动手开干时，彼时的特斯拉股价还只有区区$300。那段时间对课题方向很迷茫，甚至想把自己的课题也改成自动驾驶方向。但是无奈，仅凭现有的导师资源，难以应付工程实现难题，以及理论基础的空缺，作为主要研究方向的话，恐怕难以跻身学界的第一梯队。 于是作为纯兴趣，没有外部支持，要开始的话那一切任何软硬件方案都需要从零构建组合">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://localhost:4000/2020/07/28/wheel-angle-calibration/wheelangle.png">
+<meta property="og:image" content="http://localhost:4000/2020/07/28/wheel-angle-calibration/phidelta.png">
+<meta property="article:published_time" content="2020-07-29T00:14:44.000Z">
+<meta property="article:modified_time" content="2020-07-29T04:12:52.310Z">
+<meta property="article:author" content="Zheng Liu">
+<meta property="article:tag" content="Future Driving">
+<meta property="article:tag" content="Python">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://localhost:4000/2020/07/28/wheel-angle-calibration/wheelangle.png">
+
+<link rel="canonical" href="http://localhost:4000/2020/07/28/wheel-angle-calibration/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>从零构建未来驾驶技术栈（1）：车的哲学三问 | Zheng's Learning Notes</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Zheng's Learning Notes</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">政的学习笔记</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://localhost:4000/2020/07/28/wheel-angle-calibration/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Zheng Liu">
+      <meta itemprop="description" content="About GIS, fearless driving, and life">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Zheng's Learning Notes">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          从零构建未来驾驶技术栈（1）：车的哲学三问
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2020-07-28 20:14:44" itemprop="dateCreated datePublished" datetime="2020-07-28T20:14:44-04:00">2020-07-28</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2020-07-29 00:12:52" itemprop="dateModified" datetime="2020-07-29T00:12:52-04:00">2020-07-29</time>
+              </span>
+
+          
+  
+  <span class="post-meta-item">
+    
+      <span class="post-meta-item-icon">
+        <i class="far fa-comment"></i>
+      </span>
+      <span class="post-meta-item-text">Disqus：</span>
+    
+    <a title="disqus" href="/2020/07/28/wheel-angle-calibration/#disqus_thread" itemprop="discussionUrl">
+      <span class="post-comments-count disqus-comment-count" data-disqus-identifier="2020/07/28/wheel-angle-calibration/" itemprop="commentCount"></span>
+    </a>
+  </span>
+  
+  
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <p>出于对汽车的兴趣以及专业的惯性，自己很久之前就开始想象未来汽车以及驾驶的发展方向。待到动手开干时，彼时的特斯拉股价还只有区区$300。那段时间对课题方向很迷茫，甚至想把自己的课题也改成自动驾驶方向。但是无奈，仅凭现有的导师资源，难以应付工程实现难题，以及理论基础的空缺，作为主要研究方向的话，恐怕难以跻身学界的第一梯队。</p>
+<p>于是作为纯兴趣，没有外部支持，要开始的话那一切任何软硬件方案都需要从零构建组合。某一天在树莓派论坛闲逛时，发现了RoadApplePi这个开源项目。这个项目利用了obd2接口，实现了车载黑匣子的功能，而且整套硬件的成本可接受，读取车辆信息只需要能解码obd口的芯片和树莓派。继续顺藤摸瓜发现，基于elm327芯片的方案，虽然成本低廉，但是不能获取更全面的信息，而且非常难用。想要真正地黑到所有车载电脑信息，需要获取更底层的CAN数据。记得有一篇丰田和英伟达合作的自动驾驶文章，就是直接用can作为通讯接口。自己尝试了以下两种方案</p>
+<ul>
+<li><a href="https://kkuchera.github.io/canalyze/" target="_blank" rel="noopener">CANalyze</a> (60 USD) 外加两条连接线</li>
+<li><a href="https://github.com/commaai/panda" target="_blank" rel="noopener">Panda</a> (100 USD) 外加一条连接线</li>
+</ul>
+<p>另外有一些英文社区和b站的项目使用了pican 2这个板子，配合树莓派使用，价格低于以上两种，但是在车上使用的树莓派安上了显示器，不再适配这种方案，遂放弃。两种方案最大的区别是，CANalyze是有线连接而Panda是wifi连接。软件端均有Python包支持，非常方便。</p>
+<p>Panda不仅仅解决了获取信息，直接让我了解到 comma.ai 这个公司是做开源自动驾驶解决方案的。算法实现林林总总，但是直接把产品级别代码开源也是大开眼界。好处是显然的，对于学习自动驾驶的技术栈，有了一个非常好的参照物。</p>
+<p>想得到汽车的状态数据，需要经过一些繁琐的实验，确定每一种数据在can总线中物理地址，之后用简单的脚本就可以像飞机黑匣子一样记录汽车的操控数据（主要是油门，刹车，方向盘角度和力矩）和运行状态了！从哲学角度，有了这些数据，就可以回答小车车对自己提出的“我是谁”的问题了。</p>
+<p>对于后两个哲学问题，“从哪里来”和“到哪里去”，显而易见，首先需要对车进行定位。市面上很多款行车记录仪配备gps功能，但是不是所有的产品都方便获取原始的gps数据，比如rexing。行车记录仪只是一时之计，想要统一到一个系统可以用usb gps模块，通常低于20USD。图像和定位信息暂时从行车记录仪解决了，虽然精度不高，时间上采样频率是1Hz, 空间上单条轨迹相对的位置精度还好，但是每次连接卫星，都会有不同的偏移，估计有1m-10m的误差。（没上过测量学，不知有什么解决方案）</p>
+<p>实现以上步骤，花了有一年多，终于是有一套简陋但是信息相对完整的驾驶数据集。理论上可以开始构建自动驾驶的算法了，但是“到哪里去”又成了一个意外的难题，博客的后半部分也是探究一下解决方案。</p>
+<p>问题源于自己车上的方向盘角度传感器在ecu启动时默认设置为归中位也就是0，无论此时方向盘是否真的回正。这就导致每次旅程记录的方向盘角度都有一个未知的偏移角度，不能消除这个偏移，也就无法正确识别小车当前前进方向，更无从谈起自动驾驶。图像识别也许可以帮忙，但是需要额外的大量算力，倘若通过算法让车机自动校正呢？</p>
+<p><img src="/2020/07/28/wheel-angle-calibration/wheelangle.png" alt="Simple model"></p>
+<p>使用一个简化的模型，车辆轴距为L,此时车轮偏转 $\omega$ 角度,转弯半径约为<br>$$R = \frac{L}{\sin{\omega}}$$</p>
+<p>当车辆速度为$v$,经过$\Delta t$时间后，航向角偏转$\Delta \psi$ 为<br>$$\Delta \psi = \frac{v(t) \cdot \Delta t}{R}<br>$$<br>$\omega$与方向盘偏移角度的关系因车而不同，且可能随速度变化，此处假设低速情况下成正相关,系数为$\alpha$</p>
+<p>$$\omega = \alpha (X(t) - \Delta)<br>$$<br>其中$X(t)$为$t$时刻的方向盘偏移角，$\Delta$为我们要求的初始偏移角。合并后得到</p>
+<p>$$<br>\Delta \psi = \frac{v(t) \cdot \Delta t \cdot \sin(\alpha(X(t) - \Delta))}{L}<br>$$</p>
+<p>从公式上看当$\Delta \psi = 0$,有$\Delta = X(t)$,那么如果从数据中找到直行的数据点，那么此时方向盘的角度读数即为偏移角度。实际情况中，由于方向盘采样频率高(&gt;&gt;1Hz)而坐标的采样时间和空间频率低，严格的$\Delta \psi = 0$极少出现，而在$0$附近$X(t)$呈现一种分布，简单方法是求分布的均值。比如下图数据集，可以估算出偏移角$\Delta$约为$-7.5$度。<br><img src="/2020/07/28/wheel-angle-calibration/phidelta.png" alt="Plot Phi Xt"><br>这种方法无法获得一种统一而且收敛的结果，0值的临域和采样的时间范围都是变量，且波动不小。</p>
+<p>另一方面可以求解积分形式<br>$$<br>\Delta \psi = \int^{t1}_{t0}\frac{v(t) \cdot \sin(\alpha(X(t) - \Delta))}{L} dt<br>$$</p>
+<p>当车轮偏转角度不大时可近似为</p>
+<p>$$<br>\Delta \psi = \frac{\alpha}{L} \int^{t1}_{t0}v(t) \cdot (X(t) - \Delta)) dt<br>$$</p>
+<p>此式引入了未知常量$C = \frac{\alpha}{L}$，可以控制的参数是起始和结束时间$t0$和$t1$，其求解超出我的当前的知识范围，能想到的解法是，搜索一个合适的$C$,求出满足积分方程$\Delta$的值，在不同$t0$和$t1$下。合适的$C$应该使得不同$t0$,$t1$组合下，$\Delta$的解为常值，得到的常值应为估计值。才疏学浅，希望有高人指点，给出一个干脆利落的解法！</p>
+<p>未来驾驶，不限于自动驾驶，一定有各种传感器组成基础设施。采集得来的驾驶数据就是ai的燃料。因为隐私的问题，一定会像其他ai数据集一样成为双刃剑。除非有一天道路上的车全部由一套系统统一控制，在此之前，人和无人车的对抗、ai和ai之间的对抗会一直存在。还有一点，相信有人和我一样是能享受驾驶的乐趣，虽然前路还不太明确，但是我想象中的未来驾驶的场景会保留住有人驾驶这一核心。特斯拉股价1500了，如果之前的硬件投资买一股，现在够多配一块2080ti 或者Livox LiDAR了。</p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Future-Driving/" rel="tag"># Future Driving</a>
+              <a href="/tags/Python/" rel="tag"># Python</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2020/07/05/hello-world/" rel="prev" title="Hello World">
+      <i class="fa fa-chevron-left"></i> Hello World
+    </a></div>
+      <div class="post-nav-item"></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+    
+  <div class="comments">
+    <div id="disqus_thread">
+      <noscript>Please enable JavaScript to view the comments powered by Disqus.</noscript>
+    </div>
+  </div>
+  
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">Zheng Liu</p>
+  <div class="site-description" itemprop="description">About GIS, fearless driving, and life</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">2</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">3</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/leonardzh" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;leonardzh" rel="noopener" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:liuliuzheng1208@gmail.com" title="E-Mail → mailto:liuliuzheng1208@gmail.com" rel="noopener" target="_blank"><i class="fa fa-envelope fa-fw"></i>E-Mail</a>
+      </span>
+  </div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2020</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Zheng Liu</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://pisces.theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Pisces</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+      
+
+<script>
+  if (typeof MathJax === 'undefined') {
+    window.MathJax = {
+      loader: {
+        source: {
+          '[tex]/amsCd': '[tex]/amscd',
+          '[tex]/AMScd': '[tex]/amscd'
+        }
+      },
+      tex: {
+        inlineMath: {'[+]': [['$', '$']]},
+        tags: 'ams'
+      },
+      options: {
+        renderActions: {
+          findScript: [10, doc => {
+            document.querySelectorAll('script[type^="math/tex"]').forEach(node => {
+              const display = !!node.type.match(/; *mode=display/);
+              const math = new doc.options.MathItem(node.textContent, doc.inputJax[0], display);
+              const text = document.createTextNode('');
+              node.parentNode.replaceChild(text, node);
+              math.start = {node: text, delim: '', n: 0};
+              math.end = {node: text, delim: '', n: 0};
+              doc.math.push(math);
+            });
+          }, '', false],
+          insertedScript: [200, () => {
+            document.querySelectorAll('mjx-container').forEach(node => {
+              let target = node.parentNode;
+              if (target.nodeName.toLowerCase() === 'li') {
+                target.parentNode.classList.add('has-jax');
+              }
+            });
+          }, '', false]
+        }
+      }
+    };
+    (function () {
+      var script = document.createElement('script');
+      script.src = '//cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js';
+      script.defer = true;
+      document.head.appendChild(script);
+    })();
+  } else {
+    MathJax.startup.document.state(0);
+    MathJax.texReset();
+    MathJax.typeset();
+  }
+</script>
+
+    
+
+  
+
+<script>
+  function loadCount() {
+    var d = document, s = d.createElement('script');
+    s.src = 'https://leonardzh.disqus.com/count.js';
+    s.id = 'dsq-count-scr';
+    (d.head || d.body).appendChild(s);
+  }
+  // defer loading until the whole page loading is completed
+  window.addEventListener('load', loadCount, false);
+</script>
+<script>
+  var disqus_config = function() {
+    this.page.url = "http://localhost:4000/2020/07/28/wheel-angle-calibration/";
+    this.page.identifier = "2020/07/28/wheel-angle-calibration/";
+    this.page.title = "从零构建未来驾驶技术栈（1）：车的哲学三问";
+    };
+  NexT.utils.loadComments(document.querySelector('#disqus_thread'), () => {
+    if (window.DISQUS) {
+      DISQUS.reset({
+        reload: true,
+        config: disqus_config
+      });
+    } else {
+      var d = document, s = d.createElement('script');
+      s.src = 'https://leonardzh.disqus.com/embed.js';
+      s.setAttribute('data-timestamp', '' + +new Date());
+      (d.head || d.body).appendChild(s);
+    }
+  });
+</script>
+
+</body>
+</html>
